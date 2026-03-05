@@ -1,6 +1,11 @@
 # Base image
 FROM node:20-bookworm-slim
 
+# Skip Puppeteer's bundled Chromium download — we use google-chrome-stable from apt
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD true
+ENV PUPPETEER_SKIP_DOWNLOAD true
+ENV PUPPETEER_BROWSER_PATH "google-chrome-stable"
+
 # Copy repository
 COPY . /metrics
 WORKDIR /metrics
@@ -28,10 +33,6 @@ RUN chmod +x /metrics/source/app/action/index.mjs \
   # Install node modules and rebuild indexes
   && npm ci \
   && npm run build
-
-# Environment variables
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD true
-ENV PUPPETEER_BROWSER_PATH "google-chrome-stable"
 
 # Execute GitHub action
 ENTRYPOINT node /metrics/source/app/action/index.mjs
