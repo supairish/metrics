@@ -46,12 +46,14 @@ export const puppeteer = {
     return _puppeteer.launch({
       headless: this.headless,
       executablePath: process.env.PUPPETEER_BROWSER_PATH,
-      args: this.headless ? ["--no-sandbox", "--disable-extensions", "--disable-setuid-sandbox", "--disable-dev-shm-usage"] : [],
+      args: this.headless ? ["--no-sandbox", "--disable-extensions", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu", "--disable-software-rasterizer", "--no-first-run", "--no-zygote"] : [],
       ignoreDefaultArgs: ["--disable-extensions"],
+      protocolTimeout: 120000,
+      timeout: 60000,
     })
   },
   headless: "new",
-  events: ["load", "domcontentloaded", "networkidle2"],
+  events: ["load", "domcontentloaded"],
 }
 
 /**Plural formatter */
@@ -488,7 +490,7 @@ export const svg = {
     console.debug("metrics/svg/pdf > loading svg")
     const page = await svg.resize.browser.newPage()
     page.on("console", ({_text: text}) => console.debug(`metrics/svg/pdf > puppeteer > ${text}`))
-    await page.setContent(`<main class="markdown-body">${rendered}</main>`, {waitUntil: puppeteer.events})
+    await page.setContent(`<main class="markdown-body">${rendered}</main>`, {waitUntil: puppeteer.events, timeout: 60000})
     console.debug("metrics/svg/pdf > loaded svg successfully")
     const margins = (Array.isArray(paddings) ? paddings : paddings.split(",")).join(" ")
     console.debug(`metrics/svg/pdf > margins set to ${margins}`)
@@ -533,7 +535,7 @@ export const svg = {
     page
       .on("console", message => console.debug(`metrics/svg/resize > puppeteer > ${message.text()}`))
       .on("pageerror", error => console.debug(`metrics/svg/resize > puppeteer > ${error.message}`))
-    await page.setContent(rendered, {waitUntil: puppeteer.events})
+    await page.setContent(rendered, {waitUntil: puppeteer.events, timeout: 60000})
     console.debug("metrics/svg/resize > loaded svg successfully")
     await page.addStyleTag({content: "body { margin: 0; padding: 0; }"})
     let mime = "image/svg+xml"
@@ -607,7 +609,7 @@ export const svg = {
     }
     //Compute hash
     const page = await svg.resize.browser.newPage()
-    await page.setContent(rendered, {waitUntil: puppeteer.events})
+    await page.setContent(rendered, {waitUntil: puppeteer.events, timeout: 60000})
     const data = await page.evaluate(async () => {
       document.querySelector("footer")?.remove()
       return document.querySelector("svg").outerHTML
