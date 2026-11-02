@@ -52,7 +52,7 @@ export const puppeteer = {
       timeout: 60000,
     })
   },
-  headless: "new",
+  headless: true,
   events: ["load", "domcontentloaded"],
 }
 
@@ -489,7 +489,7 @@ export const svg = {
     //Render through browser and print pdf
     console.debug("metrics/svg/pdf > loading svg")
     const page = await svg.resize.browser.newPage()
-    page.on("console", ({_text: text}) => console.debug(`metrics/svg/pdf > puppeteer > ${text}`))
+    page.on("console", message => console.debug(`metrics/svg/pdf > puppeteer > ${message.text()}`))
     await page.setContent(`<main class="markdown-body">${rendered}</main>`, {waitUntil: puppeteer.events, timeout: 60000})
     console.debug("metrics/svg/pdf > loaded svg successfully")
     const margins = (Array.isArray(paddings) ? paddings : paddings.split(",")).join(" ")
@@ -501,7 +501,7 @@ export const svg = {
         ${await fs.readFile(paths.join(__module(import.meta.url), "../../../node_modules", "@primer/css/dist/markdown.css")).catch(_ => "")}${style}
       `,
     })
-    rendered = await page.pdf()
+    rendered = Buffer.from(await page.pdf())
     //Result
     await page.close()
     console.debug("metrics/svg/pdf > rendering complete")
@@ -589,7 +589,7 @@ export const svg = {
     //Convert if required
     if (convert) {
       console.debug(`metrics/svg/resize > convert to ${convert}`)
-      resized = await page.screenshot({type: convert, clip: {x: 0, y: 0, width, height}, omitBackground: true})
+      resized = Buffer.from(await page.screenshot({type: convert, clip: {x: 0, y: 0, width, height}, omitBackground: true}))
       mime = `image/${convert}`
     }
     //Result
@@ -747,7 +747,7 @@ export async function record({page, width, height, frames, scale = 1, quality = 
   //Register images frames
   const images = []
   for (let i = 0; i < frames; i++) {
-    images.push(await page.screenshot({type: "png", clip: {width, height, x, y}, omitBackground: background}))
+    images.push(Buffer.from(await page.screenshot({type: "png", clip: {width, height, x, y}, omitBackground: background})))
     await wait(delay / 1000)
     if (i % 10 === 0)
       console.debug(`metrics/record > processed ${i}/${frames} frames`)
@@ -776,7 +776,7 @@ export async function gif({page, width, height, frames, x = 0, y = 0, repeat = t
     encoder.setQuality(quality)
     //Register frames
     for (let i = 0; i < frames; i++) {
-      const buffer = new PNG(await page.screenshot({clip: {width, height, x, y}}))
+      const buffer = new PNG(Buffer.from(await page.screenshot({clip: {width, height, x, y}})))
       encoder.addFrame(await new Promise(solve => buffer.decode(pixels => solve(pixels))))
       if (frames % 10 === 0)
         console.debug(`metrics/puppeteergif > processed ${i}/${frames} frames`)

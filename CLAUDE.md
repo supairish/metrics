@@ -8,8 +8,8 @@ Upstream is effectively abandoned (last commit Dec 2023). This fork carries cust
 
 The action runs as a **Docker container** on GitHub Actions. The pipeline:
 
-1. Docker builds a container with Node 20, system Chrome, Ruby, Deno, Python
-2. `npm ci` installs dependencies (including Puppeteer v21)
+1. Docker builds a container with Node 22, Chrome's shared libraries, Ruby, Deno, Python
+2. `npm ci` installs dependencies, including Puppeteer v25, which downloads its own Chrome
 3. The action fetches GitHub data via REST/GraphQL APIs
 4. **Puppeteer renders the SVG** using headless Chrome, resizes it, and commits to the repo
 
@@ -20,27 +20,19 @@ The action runs as a **Docker container** on GitHub Actions. The pipeline:
 - `source/app/action/index.mjs` — GitHub Action entrypoint
 - `source/app/metrics/index.mjs` — Main metrics generation orchestrator
 
-## Critical: Dockerfile ENV ordering
-
-`ENV` directives only apply to **subsequent** `RUN` instructions. The `PUPPETEER_SKIP_CHROMIUM_DOWNLOAD` and `PUPPETEER_SKIP_DOWNLOAD` vars **must** be set before `RUN npm ci`, or Puppeteer will download a ~200MB Chromium binary on every build (wasting time and causing intermittent hangs).
-
-```dockerfile
-# CORRECT — ENV before RUN
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD true
-ENV PUPPETEER_SKIP_DOWNLOAD true
-RUN npm ci
-
-# WRONG — ENV after RUN (has no effect during build)
-RUN npm ci
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD true
-```
-
 ## Chrome / Puppeteer setup
 
-- **System Chrome** (`google-chrome-stable`) is installed via apt-get in the Dockerfile
-- **Puppeteer's bundled Chromium download is skipped** — we use the system Chrome instead
-- `PUPPETEER_BROWSER_PATH="google-chrome-stable"` tells Puppeteer which binary to use
-- Puppeteer v21 was built for Chromium ~117, but system Chrome updates independently — version drift is possible
+**Chrome is pinned by `package-lock.json`.** Puppeteer downloads the Chrome for Testing build it was released against during `npm ci`; the browser changes only when Puppeteer is bumped. Until 2026-11 the image instead installed `google-chrome-stable` from apt with the download skipped, which paired Puppeteer 21 (built for Chrome ~116) with whatever Chrome was current — Chrome 156 by then. Don't go back to that: the drift is unbounded and the failure mode is a silent hang at "Rendering".
+
+- `PUPPETEER_CACHE_DIR=/metrics/.cache/puppeteer` is set before `RUN npm ci` so the download and the runtime lookup agree on one fixed path instead of on `HOME`. `action.yml` is a composite action that runs `docker run --env-file .env` itself, and that file carries only `INPUT_*`, `GITHUB*`, `ACTIONS*`, `CI` and `TZ`, so `HOME` is `/root` today; the fixed path keeps it that way if the runner setup changes.
+- `PUPPETEER_CHROME_HEADLESS_SHELL_SKIP_DOWNLOAD` skips the second browser: `headless: true` uses full Chrome.
+- `PUPPETEER_BROWSER_PATH` is still honoured by `utils.mjs` (`executablePath`) but is unset; setting it overrides the pinned browser.
+- The apt list in the Dockerfile is Chrome's shared libraries (from pptr.dev/troubleshooting) plus CJK/Thai/Arabic fonts. The apt `google-chrome-stable` package used to pull the libraries in as dependencies.
+- Chrome for Testing has no linux-arm64 build: build locally with `docker build --platform linux/amd64`.
+
+### Puppeteer ≥23 returns `Uint8Array`, not `Buffer`
+
+`page.screenshot()` and `page.pdf()` results are wrapped in `Buffer.from(...)` in `utils.mjs`. The action's output writer (`source/app/action/index.mjs`, `Buffer.isBuffer(value) ? value : Buffer.from(JSON.stringify(value))`) would otherwise write a PNG/PDF as a JSON array of numbers. Wrap any new screenshot call the same way.
 
 ### Puppeteer launch flags
 
@@ -83,7 +75,8 @@ After pushing fixes to this repo, update the SHA in the workflow file.
 
 When modifying this fork:
 
-- [ ] Never move `PUPPETEER_SKIP_DOWNLOAD` ENV after the `RUN npm ci` layer
+- [ ] Keep `PUPPETEER_CACHE_DIR` a fixed path set before the `RUN npm ci` layer; don't reintroduce `PUPPETEER_SKIP_DOWNLOAD` or an apt Chrome
+- [ ] Wrap `page.screenshot()` / `page.pdf()` results in `Buffer.from(...)`
 - [ ] Keep explicit timeouts on all Puppeteer operations (launch, setContent, evaluate)
 - [ ] Don't add `networkidle2` back to `setContent()` waitUntil events
 - [ ] After pushing changes, update the commit SHA in `supairish/supairish` workflow

@@ -15,7 +15,7 @@
     "preview": "node .github/scripts/preview.mjs",
     "linter": "eslint source/**/*.mjs --quiet",
     "dev": "nodemon source/app/web/index.mjs -e mjs,css,ejs,json",
-    "postinstall": "node node_modules/puppeteer/install.js",
+    "postinstall": "node node_modules/puppeteer/install.mjs",
     "indepth": "node source/plugins/languages/analyzers.mjs"
   },
   "repository": {
@@ -53,10 +53,10 @@
     "marked": "^7.0.5",
     "memory-cache": "^0.2.0",
     "minimatch": "^9.0.3",
-    "open-graph-scraper": "^6.2.2",
+    "open-graph-scraper": "^6.12.0",
     "png-js": "^1.0.0",
     "prismjs": "^1.29.0",
-    "puppeteer": "^21.2.1",
+    "puppeteer": "^25.16.0",
     "purgecss": "^5.0.0",
     "rss-parser": "^3.13.0",
     "sanitize-html": "^2.11.0",
